@@ -44,12 +44,16 @@ npm run dev               # http://localhost:4000
 
 The wildcard `*` record covers `admin.`, `back.` and every card subdomain.
 
-### 2. Packages
+### 2. Node 22 just for TekCard (other apps keep the system Node)
 ```bash
-apt update && apt install -y nginx git build-essential
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt install -y nodejs
-npm i -g pm2
+cd /opt
+F=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt | grep -o 'node-v22[^ ]*-linux-x64.tar.xz')
+curl -fsSLO https://nodejs.org/dist/latest-v22.x/$F
+tar xf $F && rm $F && mv ${F%.tar.xz} node22
+/opt/node22/bin/node -v        # v22.x
+node -v                        # system Node unchanged
 ```
+Also needed: `nginx`, `git`, `build-essential`, and `pm2` (any Node version).
 
 ### 3. Code
 ```bash
@@ -59,7 +63,7 @@ cd tekcard-api
 cp .env.example .env
 nano .env    # set JWT_SECRET (openssl rand -hex 32) and ADMIN_EMAIL / ADMIN_PASSWORD
 ./deploy.sh
-pm2 startup  # run the command it prints, so the API starts after reboot
+pm2 startup  # only if never done on this server — run the command it prints
 curl http://127.0.0.1:4000/api/health   # -> {"ok":true}
 ```
 
