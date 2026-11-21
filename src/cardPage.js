@@ -11,6 +11,17 @@ const PLATFORM_NAMES = {
   youtube: 'YouTube', threads: 'Threads', telegram: 'Telegram', whatsapp: 'WhatsApp', phone: 'Call', email: 'Email',
   website: 'Website', location: 'Location', pinterest: 'Pinterest', github: 'GitHub', behance: 'Behance', custom: 'Link',
 };
+const PLATFORM_NAMES_AR = {
+  instagram: 'انستقرام', tiktok: 'تيك توك', snapchat: 'سناب شات', x: 'إكس (تويتر)', facebook: 'فيسبوك', linkedin: 'لينكدإن',
+  youtube: 'يوتيوب', threads: 'ثريدز', telegram: 'تيليجرام', whatsapp: 'واتساب', phone: 'اتصال', email: 'البريد الإلكتروني',
+  website: 'الموقع الإلكتروني', location: 'الموقع على الخريطة', pinterest: 'بنترست', github: 'جيت هب', behance: 'بيهانس', custom: 'رابط',
+};
+// English + Arabic text for a button: custom text wins, otherwise the platform name
+function labels(l) {
+  const en = l.label || PLATFORM_NAMES[l.platform] || 'Link';
+  const ar = l.label_ar || (l.label ? l.label : PLATFORM_NAMES_AR[l.platform] || 'رابط');
+  return `<span class="lt" data-en="${esc(en)}" data-ar="${esc(ar)}">${esc(en)}</span>`;
+}
 
 function renderCard(c, { base }) {
   const color = c.theme_color || '#0f172a';
@@ -23,10 +34,10 @@ function renderCard(c, { base }) {
     // Phone links open the same action sheet as the main phone button
     if (l.platform === 'phone') {
       return `<button class="link" data-phone="${esc(l.url.replace('tel:', ''))}">
-        <span class="ic">${svg('phone')}</span><span class="lt">${esc(l.label || PLATFORM_NAMES.phone)}</span><span class="ar">›</span></button>`;
+        <span class="ic">${svg('phone')}</span>${labels(l)}<span class="ar">›</span></button>`;
     }
     return `<a class="link" href="${esc(base)}/go/${l.id}" ${/^https?:/.test(l.url) ? 'target="_blank" rel="noopener"' : ''}>
-      <span class="ic">${svg(l.platform)}</span><span class="lt">${esc(l.label || PLATFORM_NAMES[l.platform] || 'Link')}</span><span class="ar">›</span></a>`;
+      <span class="ic">${svg(l.platform)}</span>${labels(l)}<span class="ar">›</span></a>`;
   }).join('');
 
   return `<!DOCTYPE html>
@@ -94,11 +105,11 @@ html[dir=rtl] .lang{right:auto;left:14px}
   </div>
   ${phone ? `<div class="quick">
     <button class="qb" data-phone="${esc(phone)}">${svg('phone', 22)}<span data-t="call">Call</span></button>
-    <a class="qb" href="https://wa.me/${esc(waNum)}" target="_blank" rel="noopener">${svg('whatsapp', 22)}<span>WhatsApp</span></a>
+    <a class="qb" href="https://wa.me/${esc(waNum)}" target="_blank" rel="noopener">${svg('whatsapp', 22)}<span data-t="whatsapp">WhatsApp</span></a>
     <a class="qb" href="${esc(base)}/contact.vcf"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg><span data-t="save">Save</span></a>
   </div>` : ''}
   <div class="links">${links}</div>
-  <div class="foot">Powered by <a href="https://teknulugy.com" target="_blank" rel="noopener">Teknulugy</a></div>
+  <div class="foot"><span data-t="powered">Powered by</span> <a href="https://teknulugy.com" target="_blank" rel="noopener">Teknulugy</a></div>
 </div>
 
 <a class="save" href="${esc(base)}/contact.vcf">
@@ -121,11 +132,12 @@ html[dir=rtl] .lang{right:auto;left:14px}
 
 <script>
 (function(){
-  var T={en:{call:'Call',save:'Save',saveContact:'Save Contact',choose:'How would you like to connect?',wa:'Message on WhatsApp',cancel:'Cancel',lang:'عربي'},
-         ar:{call:'اتصال',save:'حفظ',saveContact:'حفظ جهة الاتصال',choose:'كيف تحب التواصل؟',wa:'مراسلة على واتساب',cancel:'إلغاء',lang:'English'}};
+  var T={en:{whatsapp:'WhatsApp',call:'Call',save:'Save',saveContact:'Save Contact',choose:'How would you like to connect?',wa:'Message on WhatsApp',cancel:'Cancel',powered:'Powered by',lang:'عربي'},
+         ar:{whatsapp:'واتساب',call:'اتصال',save:'حفظ',saveContact:'حفظ جهة الاتصال',choose:'كيف تحب التواصل؟',wa:'مراسلة على واتساب',cancel:'إلغاء',powered:'بواسطة',lang:'English'}};
   var lang=(localStorage.getItem('tc_lang')||(navigator.language||'en')).slice(0,2)==='ar'?'ar':'en';
   function apply(){document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';
     document.querySelectorAll('[data-t]').forEach(function(e){var k=e.getAttribute('data-t');if(T[lang][k])e.textContent=T[lang][k]});
+    document.querySelectorAll('[data-en]').forEach(function(e){e.textContent=e.getAttribute('data-'+lang)||e.getAttribute('data-en')});
     document.getElementById('lang').textContent=T[lang].lang;}
   try{apply()}catch(e){}
   document.getElementById('lang').onclick=function(){lang=lang==='ar'?'en':'ar';try{localStorage.setItem('tc_lang',lang)}catch(e){}apply()};

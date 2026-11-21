@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS links (
 CREATE INDEX IF NOT EXISTS idx_links_card ON links(card_id);
 `);
 
+// migrations
+if (!db.prepare('PRAGMA table_info(links)').all().some((c) => c.name === 'label_ar')) {
+  db.exec("ALTER TABLE links ADD COLUMN label_ar TEXT DEFAULT ''");
+}
+
 // Seed the first admin from .env if none exists
 function seedAdmin() {
   const count = db.prepare('SELECT COUNT(*) c FROM admins').get().c;

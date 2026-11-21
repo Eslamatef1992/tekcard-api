@@ -64,7 +64,7 @@ function serializeCard(c, withLinks = true) {
 function saveLinks(cardId, links) {
   if (!Array.isArray(links)) return;
   const del = db.prepare('DELETE FROM links WHERE card_id = ?');
-  const ins = db.prepare('INSERT INTO links (card_id, platform, label, value, url, sort_order, clicks) VALUES (?,?,?,?,?,?,?)');
+  const ins = db.prepare('INSERT INTO links (card_id, platform, label, label_ar, value, url, sort_order, clicks) VALUES (?,?,?,?,?,?,?,?)');
   const old = Object.fromEntries(db.prepare('SELECT id, clicks FROM links WHERE card_id = ?').all(cardId).map((l) => [l.id, l.clicks]));
   db.transaction(() => {
     del.run(cardId);
@@ -72,7 +72,7 @@ function saveLinks(cardId, links) {
       const platform = PLATFORMS[l.platform] ? l.platform : 'custom';
       const value = String(l.value || '').trim();
       if (!value) return;
-      ins.run(cardId, platform, String(l.label || '').trim(), value, buildUrl(platform, value), i, old[l.id] || 0);
+      ins.run(cardId, platform, String(l.label || '').trim(), String(l.label_ar || '').trim(), value, buildUrl(platform, value), i, old[l.id] || 0);
     });
   })();
 }
