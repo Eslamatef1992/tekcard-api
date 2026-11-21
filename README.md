@@ -67,34 +67,31 @@ pm2 startup  # only if never done on this server — run the command it prints
 curl http://127.0.0.1:4000/api/health   # -> {"ok":true}
 ```
 
-### 4. Wildcard SSL (Let's Encrypt, DNS challenge)
-Subdomain cards need a wildcard certificate, which Let's Encrypt only issues via a DNS TXT record.
-
-**If DNS is on Cloudflare (recommended — renews automatically):**
+### 4. SSL (two certificates)
+**Main names** (root, www, admin, back), via HTTP check, auto-renews with certbot:
 ```bash
-apt install -y certbot python3-certbot-dns-cloudflare
-mkdir -p /root/.secrets && echo "dns_cloudflare_api_token = YOUR_TOKEN" > /root/.secrets/cloudflare.ini
-chmod 600 /root/.secrets/cloudflare.ini
-certbot certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/cloudflare.ini \
-  -d teknulugycard.com -d '*.teknulugycard.com'
+mkdir -p /var/www/letsencrypt
+# first enable only the port-80 block of deploy/nginx-teknulugycard.conf, then:
+certbot certonly --webroot -w /var/www/letsencrypt \
+  -d teknulugycard.com -d www.teknulugycard.com -d admin.teknulugycard.com -d back.teknulugycard.com \
+  --cert-name teknulugycard.com
 ```
-(Cloudflare token needs *Zone → DNS → Edit*. Keep the `*` record as "DNS only" / grey cloud, or switch to Cloudflare proxy + Origin Certificate.)
-
-**Any other DNS provider (manual — must be repeated every 90 days):**
+**Card subdomains** (`*.teknulugycard.com`), via lego v5 + Hostinger DNS API token in `/root/.secrets/hostinger-token`:
 ```bash
-apt install -y certbot
-certbot certonly --manual --preferred-challenges dns -d teknulugycard.com -d '*.teknulugycard.com'
-# certbot shows a TXT value -> add it as _acme-challenge.teknulugycard.com at your DNS, wait 1-2 min, press Enter
+HOSTINGER_API_TOKEN_FILE=/root/.secrets/hostinger-token HOSTINGER_PROPAGATION_TIMEOUT=600 \
+lego run --accept-tos --email you@example.com --dns hostinger \
+  -d '*.teknulugycard.com' --cert.name wildcard-teknulugycard --path /etc/lego \
+  --deploy-hook "systemctl reload nginx"
 ```
+Re-running the same command weekly (cron) renews it when due.
 
 ### 5. Nginx
 ```bash
 cp deploy/nginx-teknulugycard.conf /etc/nginx/sites-available/teknulugycard.conf
-ln -s /etc/nginx/sites-available/teknulugycard.conf /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/teknulugycard.conf /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 ```
-> If the server runs CyberPanel/OpenLiteSpeed on ports 80/443, Nginx can't bind those ports. In that case create the
-> sites in CyberPanel instead and add a reverse-proxy rule to `127.0.0.1:4000` for `back.`, the root domain and the wildcard.
+Uncomment the card-pages block once the wildcard certificate exists.
 
 ## Updating (every push)
 ```bash

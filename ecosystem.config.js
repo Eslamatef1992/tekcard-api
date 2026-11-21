@@ -9,7 +9,7 @@ module.exports = {
     script: 'src/server.js',
     cwd: __dirname,
     interpreter: NODE,
-    instances: 1, // SQLite: keep a single instance
+    exec_mode: 'fork', // fork mode is required for the custom interpreter (cluster mode would use PM2's own Node)
     autorestart: true,
     max_memory_restart: '300M',
     env: { NODE_ENV: 'production' },
