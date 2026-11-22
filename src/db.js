@@ -48,6 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_links_card ON links(card_id);
 `);
 
 // migrations
+if (!db.prepare('PRAGMA table_info(cards)').all().some((c) => c.name === 'wallet_enabled')) {
+  db.exec('ALTER TABLE cards ADD COLUMN wallet_enabled INTEGER DEFAULT 0');
+}
 if (!db.prepare('PRAGMA table_info(links)').all().some((c) => c.name === 'label_ar')) {
   db.exec("ALTER TABLE links ADD COLUMN label_ar TEXT DEFAULT ''");
 }

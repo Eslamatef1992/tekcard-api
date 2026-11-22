@@ -123,3 +123,44 @@ POST   /api/cards/:id/banner        multipart field "image"
 POST   /api/cards/:id/avatar        multipart field "image"
 DELETE /api/cards/:id/banner|avatar
 ```
+
+## Apple Wallet (optional)
+Each card has an **Apple Wallet pass** switch in the admin. When on (and certificates are installed), the card page shows
+**Add to Apple Wallet** on iPhone/iPad/Mac. The pass is generated on demand at `https://{name}.teknulugycard.com/wallet.pkpass`
+(photo, name, title, company, phone, links on the back, QR code to the card).
+
+### One-time certificate setup
+**On developer.apple.com** (Certificates, Identifiers & Profiles):
+1. Identifiers → **+** → **Pass Type IDs** → identifier `pass.com.teknulugy.tekcard`.
+2. Open it → **Create Certificate**. For the CSR: Mac *Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority* → *Saved to disk*.
+3. Download the `.cer`, double-click it, then in Keychain → *My Certificates* right-click **Pass Type ID: pass.com.teknulugy.tekcard** → *Export* → `Certificates.p12` with a password.
+4. Download Apple WWDR G4: https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer
+5. Note your **Team ID** (Membership details).
+
+**Upload from the Mac:**
+```bash
+ssh root@82.29.178.28 'mkdir -p /root/.secrets/tekcard-wallet && chmod 700 /root/.secrets/tekcard-wallet'
+scp ~/Downloads/Certificates.p12 ~/Downloads/AppleWWDRCAG4.cer root@82.29.178.28:/root/.secrets/tekcard-wallet/
+```
+
+**Convert on the server** (asks for the .p12 password, then a new key passphrase):
+```bash
+cd /root/.secrets/tekcard-wallet
+openssl pkcs12 -in Certificates.p12 -clcerts -nokeys -out signerCert.pem \
+  || openssl pkcs12 -legacy -in Certificates.p12 -clcerts -nokeys -out signerCert.pem
+openssl pkcs12 -in Certificates.p12 -nocerts -out signerKey.pem \
+  || openssl pkcs12 -legacy -in Certificates.p12 -nocerts -out signerKey.pem
+openssl x509 -inform der -in AppleWWDRCAG4.cer -out wwdr.pem
+chmod 600 *
+```
+
+**Add to `/var/www/tekcard-api/.env`**, then `pm2 restart tekcard-api --update-env`:
+```
+WALLET_PASS_TYPE_ID=pass.com.teknulugy.tekcard
+WALLET_TEAM_ID=YOURTEAMID
+WALLET_ORG_NAME=Teknulugy
+WALLET_CERT_DIR=/root/.secrets/tekcard-wallet
+WALLET_KEY_PASSPHRASE=the-key-passphrase-you-chose
+```
+The admin card page shows a warning while certificates are missing, and a **Download test pass** button once they work.
+Passes already added to Wallet don't update automatically; re-adding gives the latest details.

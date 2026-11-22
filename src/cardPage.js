@@ -23,7 +23,7 @@ function labels(l) {
   return `<span class="lt" data-en="${esc(en)}" data-ar="${esc(ar)}">${esc(en)}</span>`;
 }
 
-function renderCard(c, { base }) {
+function renderCard(c, { base, wallet = false }) {
   const color = c.theme_color || '#0f172a';
   const phone = c.phone || '';
   const waNum = phone.replace(/[^\d]/g, '');
@@ -78,6 +78,11 @@ html[dir=rtl] .link .ar{transform:scaleX(-1)}
 .lang{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.9);border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 html[dir=rtl] .lang{right:auto;left:14px}
 .top{position:relative}
+.wallet{display:flex;justify-content:center;margin-top:18px}
+.wallet[hidden]{display:none}
+.wallet-btn{display:inline-flex;align-items:center;gap:10px;background:#000;color:#fff;text-decoration:none;border-radius:12px;padding:10px 18px;min-width:200px;justify-content:center}
+.wallet-btn small{display:block;font-size:11px;line-height:1.1;opacity:.9}.wallet-btn b{display:block;font-size:18px;line-height:1.15;font-weight:600;letter-spacing:-.01em}
+html[dir=rtl] .wallet-btn span{text-align:right}
 .foot{text-align:center;color:#94a3b8;font-size:12px;margin-top:28px}
 .foot a{color:inherit}
 /* action sheet */
@@ -109,6 +114,12 @@ html[dir=rtl] .lang{right:auto;left:14px}
     <a class="qb" href="${esc(base)}/contact.vcf"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg><span data-t="save">Save</span></a>
   </div>` : ''}
   <div class="links">${links}</div>
+  ${wallet ? `<div class="wallet" id="walletWrap" hidden>
+    <a class="wallet-btn" href="${esc(base)}/wallet.pkpass">
+      <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true"><rect x="1" y="1" width="24" height="18" rx="4" fill="#fff"/><rect x="1" y="5" width="24" height="4" fill="#34c759"/><rect x="1" y="9" width="24" height="4" fill="#ff9500"/><rect x="1" y="13" width="24" height="3" fill="#ff3b30"/></svg>
+      <span><small data-t="addTo">Add to</small><b>Apple Wallet</b></span>
+    </a>
+  </div>` : ''}
   <div class="foot"><span data-t="powered">Powered by</span> <a href="https://teknulugy.com" target="_blank" rel="noopener">Teknulugy</a></div>
 </div>
 
@@ -132,8 +143,8 @@ html[dir=rtl] .lang{right:auto;left:14px}
 
 <script>
 (function(){
-  var T={en:{whatsapp:'WhatsApp',call:'Call',save:'Save',saveContact:'Save Contact',choose:'How would you like to connect?',wa:'Message on WhatsApp',cancel:'Cancel',powered:'Powered by',lang:'عربي'},
-         ar:{whatsapp:'واتساب',call:'اتصال',save:'حفظ',saveContact:'حفظ جهة الاتصال',choose:'كيف تحب التواصل؟',wa:'مراسلة على واتساب',cancel:'إلغاء',powered:'بواسطة',lang:'English'}};
+  var T={en:{whatsapp:'WhatsApp',call:'Call',save:'Save',saveContact:'Save Contact',choose:'How would you like to connect?',wa:'Message on WhatsApp',cancel:'Cancel',powered:'Powered by',addTo:'Add to',lang:'عربي'},
+         ar:{whatsapp:'واتساب',call:'اتصال',save:'حفظ',saveContact:'حفظ جهة الاتصال',choose:'كيف تحب التواصل؟',wa:'مراسلة على واتساب',cancel:'إلغاء',powered:'بواسطة',addTo:'أضف إلى',lang:'English'}};
   var lang=(localStorage.getItem('tc_lang')||(navigator.language||'en')).slice(0,2)==='ar'?'ar':'en';
   function apply(){document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';
     document.querySelectorAll('[data-t]').forEach(function(e){var k=e.getAttribute('data-t');if(T[lang][k])e.textContent=T[lang][k]});
@@ -141,6 +152,10 @@ html[dir=rtl] .lang{right:auto;left:14px}
     document.getElementById('lang').textContent=T[lang].lang;}
   try{apply()}catch(e){}
   document.getElementById('lang').onclick=function(){lang=lang==='ar'?'en':'ar';try{localStorage.setItem('tc_lang',lang)}catch(e){}apply()};
+
+  // Apple Wallet button only on Apple devices (iPhone, iPad, Mac Safari)
+  var ww=document.getElementById('walletWrap');
+  if(ww&&/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent))ww.hidden=false;
 
   var root=document.getElementById('sheetRoot');
   function open(num){var d=num.replace(/[^\\d]/g,'');

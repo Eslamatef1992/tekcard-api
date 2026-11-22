@@ -11,6 +11,7 @@ const sharp = require('sharp');
 const { db, seedAdmin } = require('./db');
 const { PLATFORMS, buildUrl, publicList, normalizePhone } = require('./platforms');
 const { renderCard, renderNotFound, buildVCard } = require('./cardPage');
+const { buildPass, walletStatus } = require('./wallet');
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
@@ -53,6 +54,7 @@ function serializeCard(c, withLinks = true) {
   const out = {
     ...c,
     is_active: !!c.is_active,
+    wallet_enabled: !!c.wallet_enabled,
     banner_url: fileUrl(c.banner),
     avatar_url: fileUrl(c.avatar),
     public_url: cardUrl(c.slug),
@@ -102,7 +104,8 @@ function showCard(slug, req, res) {
   if (!card) return res.status(404).send(renderNotFound(BASE_DOMAIN));
   db.prepare('UPDATE cards SET views = views + 1 WHERE id = ?').run(card.id);
   const c = serializeCard(card);
-  res.set('Cache-Control', 'no-store').send(renderCard(c, { base: `${req.protocol}://${req.get('host')}${req.baseCardPath || ''}` }));
+  const wallet = c.wallet_enabled && walletStatus().configured;
+  res.set('Cache-Control', 'no-store').send(renderCard(c, { base: `${req.protocol}://${req.get('host')}${req.baseCardPath || ''}`, wallet }));
 }
 
 app.use((req, res, next) => {
@@ -111,6 +114,7 @@ app.use((req, res, next) => {
   req.baseCardPath = '';
   if (req.path === '/' ) return showCard(slug, req, res);
   if (req.path === '/contact.vcf') return sendVcf(slug, res);
+  if (req.path === '/wallet.pkpass') return sendPass(slug, res);
   const m = req.path.match(/^\/go\/(\d+)$/);
   if (m) return redirectLink(slug, m[1], res);
   return next();
@@ -126,6 +130,21 @@ async function sendVcf(slug, res) {
   res.send(body);
 }
 
+async function sendPass(slug, res, { requireEnabled = true, card: given } = {}) {
+  const card = given || db.prepare('SELECT * FROM cards WHERE slug = ? AND is_active = 1').get(slug);
+  if (!card || (requireEnabled && !card.wallet_enabled)) return res.status(404).send('Wallet pass not available');
+  try {
+    const buf = await buildPass(serializeCard(card), cardUrl(card.slug), UPLOAD_DIR);
+    res.set('Content-Type', 'application/vnd.apple.pkpass');
+    res.set('Content-Disposition', `attachment; filename="${card.slug}.pkpass"`);
+    res.set('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (e) {
+    console.error('[wallet]', e.message);
+    res.status(503).send('Wallet pass is temporarily unavailable');
+  }
+}
+
 function redirectLink(slug, linkId, res) {
   const link = db.prepare('SELECT l.* FROM links l JOIN cards c ON c.id = l.card_id WHERE l.id = ? AND c.slug = ?').get(linkId, slug);
   if (!link) return res.status(404).end();
@@ -137,6 +156,7 @@ function redirectLink(slug, linkId, res) {
 app.get('/c/:slug', (req, res) => { req.baseCardPath = `/c/${req.params.slug}`; showCard(req.params.slug, req, res); });
 app.get('/c/:slug/contact.vcf', (req, res) => sendVcf(req.params.slug, res));
 app.get('/c/:slug/go/:id', (req, res) => redirectLink(req.params.slug, req.params.id, res));
+app.get('/c/:slug/wallet.pkpass', (req, res) => sendPass(req.params.slug, res));
 
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true }));
 
@@ -163,6 +183,17 @@ api.post('/auth/password', auth, (req, res) => {
   if (String(nextPass || '').length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
   db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(nextPass, 10), admin.id);
   res.json({ ok: true });
+});
+
+api.get('/wallet/status', auth, (req, res) => res.json(walletStatus()));
+
+// Admin test download (works even when the card's switch is off)
+api.get('/cards/:id/wallet.pkpass', auth, (req, res) => {
+  const card = db.prepare('SELECT * FROM cards WHERE id = ?').get(req.params.id);
+  if (!card) return res.status(404).json({ error: 'Not found' });
+  const st = walletStatus();
+  if (!st.configured) return res.status(503).json({ error: st.error });
+  return sendPass(card.slug, res, { requireEnabled: false, card });
 });
 
 api.get('/platforms', (req, res) => res.json({ platforms: publicList(), base_domain: BASE_DOMAIN }));
@@ -204,6 +235,7 @@ function readCardBody(b) {
     email: String(b.email || '').trim(),
     theme_color: /^#[0-9a-f]{6}$/i.test(b.theme_color || '') ? b.theme_color : '#0f172a',
     is_active: b.is_active === false ? 0 : 1,
+    wallet_enabled: b.wallet_enabled ? 1 : 0,
   };
 }
 
@@ -216,8 +248,8 @@ api.post('/cards', auth, (req, res) => {
       if (!validSlug(slug)) return res.status(400).json({ error: 'Invalid link name (letters, numbers, dashes)' });
       if (db.prepare('SELECT id FROM cards WHERE slug = ?').get(slug)) return res.status(409).json({ error: 'This link name is already taken' });
     } else slug = uniqueSlug(d.full_name);
-    const r = db.prepare(`INSERT INTO cards (slug, full_name, title, company, bio, phone, email, theme_color, is_active)
-      VALUES (@slug,@full_name,@title,@company,@bio,@phone,@email,@theme_color,@is_active)`).run({ ...d, slug });
+    const r = db.prepare(`INSERT INTO cards (slug, full_name, title, company, bio, phone, email, theme_color, is_active, wallet_enabled)
+      VALUES (@slug,@full_name,@title,@company,@bio,@phone,@email,@theme_color,@is_active,@wallet_enabled)`).run({ ...d, slug });
     saveLinks(r.lastInsertRowid, req.body.links);
     res.status(201).json({ card: serializeCard(db.prepare('SELECT * FROM cards WHERE id = ?').get(r.lastInsertRowid)) });
   } catch (e) { res.status(400).json({ error: e.message }); }
@@ -234,7 +266,7 @@ api.put('/cards/:id', auth, (req, res) => {
     if (!validSlug(slug)) return res.status(400).json({ error: 'Invalid link name (letters, numbers, dashes)' });
     if (db.prepare('SELECT id FROM cards WHERE slug = ? AND id != ?').get(slug, id)) return res.status(409).json({ error: 'This link name is already taken' });
     db.prepare(`UPDATE cards SET slug=@slug, full_name=@full_name, title=@title, company=@company, bio=@bio, phone=@phone,
-      email=@email, theme_color=@theme_color, is_active=@is_active, updated_at=CURRENT_TIMESTAMP WHERE id=@id`).run({ ...d, slug, id });
+      email=@email, theme_color=@theme_color, is_active=@is_active, wallet_enabled=@wallet_enabled, updated_at=CURRENT_TIMESTAMP WHERE id=@id`).run({ ...d, slug, id });
     saveLinks(id, req.body.links);
     res.json({ card: serializeCard(db.prepare('SELECT * FROM cards WHERE id = ?').get(id)) });
   } catch (e) { res.status(400).json({ error: e.message }); }
