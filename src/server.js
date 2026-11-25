@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const BASE_DOMAIN = (process.env.BASE_DOMAIN || 'teknulugycard.com').toLowerCase();
 const API_URL = process.env.PUBLIC_API_URL || `https://back.${BASE_DOMAIN}`;
-const RESERVED = new Set(['admin', 'back', 'www', 'api', 'mail', 'ftp', 'cpanel', 'webmail', 'ns1', 'ns2', 'app', 'static', 'cdn']);
+const RESERVED = new Set(['admin', 'back', 'www', 'api', 'mail', 'ftp', 'cpanel', 'webmail', 'ns1', 'ns2', 'app', 'static', 'cdn', 'web', 'manasa', 'shop', 'store']);
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
